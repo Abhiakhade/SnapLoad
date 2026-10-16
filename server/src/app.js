@@ -13,9 +13,20 @@ const app = express();
 
 app.use(helmet());
 
+const allowedOrigins = [
+  "https://downloadytvideo.vercel.app",
+  "http://localhost:5173",
+];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
   }),
 );
 
