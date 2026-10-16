@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   getDirectVideoDownloadUrl,
   getYouTubeDownloadUrl,
+  getSocialDownloadUrl,
 } from "../services/api";
 import DownloadLoader from "./DownloadLoader";
 
@@ -17,12 +18,15 @@ const QUALITY_OPTIONS = [
   { value: "best", label: "Best available", description: "Maximum" },
 ];
 
-function getDownloadFilename(response, isYouTube, quality) {
+function getDownloadFilename(response, isYouTube, quality, platform) {
   const disposition = response.headers.get("content-disposition");
   const match = disposition?.match(/filename="?([^";]+)"?/i);
 
   if (match?.[1]) return match[1];
-  return isYouTube ? `snapload-${quality}.mp4` : "snapload-video";
+  if (isYouTube) return `snapload-${quality}.mp4`;
+  if (platform === "instagram") return "snapload-instagram-media";
+  if (platform === "pinterest") return "snapload-pinterest-media";
+  return "snapload-media";
 }
 
 function formatBytes(bytes) {
@@ -46,8 +50,11 @@ export default function MediaResultCard({ mediaInfo }) {
 
   if (!mediaInfo) return null;
 
-  const isYouTube = mediaInfo.downloadType === "youtube";
-  const title = mediaInfo.title || "Your video";
+  const downloadType = String(mediaInfo.downloadType || "direct").toLowerCase();
+  const isYouTube = downloadType === "youtube";
+  const isSocial = ["instagram", "pinterest"].includes(downloadType);
+  const isImage = mediaInfo.mediaType === "image";
+  const title = mediaInfo.title || (isImage ? "Your image" : "Your media");
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -67,9 +74,15 @@ export default function MediaResultCard({ mediaInfo }) {
     let reader;
 
     try {
-      const downloadUrl = isYouTube
-        ? getYouTubeDownloadUrl(mediaInfo.sourceUrl, quality)
-        : getDirectVideoDownloadUrl(mediaInfo.sourceUrl);
+      let downloadUrl;
+
+      if (isYouTube) {
+        downloadUrl = getYouTubeDownloadUrl(mediaInfo.sourceUrl, quality);
+      } else if (isSocial) {
+        downloadUrl = getSocialDownloadUrl(downloadType, mediaInfo.sourceUrl);
+      } else {
+        downloadUrl = getDirectVideoDownloadUrl(mediaInfo.sourceUrl);
+      }
 
       const response = await fetch(downloadUrl);
 
@@ -123,7 +136,12 @@ export default function MediaResultCard({ mediaInfo }) {
       const contentType =
         response.headers.get("content-type") || "application/octet-stream";
       const blob = new Blob(chunks, { type: contentType });
-      const filename = getDownloadFilename(response, isYouTube, quality);
+      const filename = getDownloadFilename(
+        response,
+        isYouTube,
+        quality,
+        downloadType
+      );
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
 
@@ -267,10 +285,12 @@ export default function MediaResultCard({ mediaInfo }) {
             ) : (
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <p className="text-sm font-semibold text-slate-700">
-                  Original video file
+                  {isImage ? "Image file" : isSocial ? "Available media file" : "Original media file"}
                 </p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
-                  The source file is downloaded without quality conversion.
+                  {isSocial
+                    ? "The platform route retrieves supported public media. Availability may vary."
+                    : "The source file is downloaded without quality conversion."}
                 </p>
               </div>
             )}
@@ -304,7 +324,9 @@ export default function MediaResultCard({ mediaInfo }) {
                       strokeLinejoin="round"
                     />
                   </svg>
-                  {isYouTube ? `Download ${quality}` : "Download video"}
+                  {isYouTube
+                    ? `Download ${quality}`
+                    : `Download ${isImage ? "image" : "media"}`}
                 </>
               )}
             </button>

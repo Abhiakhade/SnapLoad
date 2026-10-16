@@ -8,20 +8,22 @@ export function getPlatformFromUrl(value) {
   try {
     const parsed = new URL(value.trim());
 
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    if (!["https:", "http:"].includes(parsed.protocol)) {
       return null;
     }
 
     const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
 
     for (const [name, domains] of Object.entries(platformDomains)) {
-      if (domains.some((domain) => host === domain || host.endsWith(`.${domain}`))) {
+      if (
+        domains.some((domain) => host === domain || host.endsWith(`.${domain}`))
+      ) {
         return name;
       }
     }
-  } catch {
-    // A partially typed URL is expected while the user is entering text.
-  }
 
-  return null;
+    return null;
+  } catch {
+    return null;
+  }
 }
