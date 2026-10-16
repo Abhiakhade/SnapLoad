@@ -2,18 +2,19 @@
   "name": "snapload-server",
   "version": "1.0.0",
   "private": true,
-  "description": "SnapLoad social media media downloader API",
+  "description": "SnapLoad media downloader API",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "render-build": "npm install && python3 -m pip install --user yt-dlp"
   },
   "keywords": [
     "snapload",
     "express",
-    "social-media",
+    "media-downloader",
     "api"
   ],
   "author": "",
