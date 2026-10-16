@@ -7,6 +7,9 @@ import rateLimit from "express-rate-limit";
 import mediaRoutes from "./routes/media.routes.js";
 import directDownloadRoutes from "./routes/directDownload.routes.js";
 import youtubeDownloadRoutes from "./routes/youtubeDownload.routes.js";
+import instagramRoutes from "./routes/instagram.routes.js";
+import pinterestRoutes from "./routes/pinterest.routes.js";
+
 dotenv.config();
 
 const app = express();
@@ -74,5 +77,8 @@ app.get("/api", (req, res) => {
 app.use("/api", mediaRoutes);
 app.use("/api/direct-media", directDownloadRoutes);
 app.use("/api/youtube", youtubeDownloadRoutes);
+
+app.use("/api/instagram", instagramRoutes);
+app.use("/api/pinterest", pinterestRoutes);
 
 export default app;
