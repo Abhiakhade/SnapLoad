@@ -55,6 +55,8 @@ export default function MediaResultCard({ mediaInfo }) {
   const isSocial = ["instagram", "pinterest"].includes(downloadType);
   const isImage = mediaInfo.mediaType === "image";
   const title = mediaInfo.title || (isImage ? "Your image" : "Your media");
+  const platformLabel =
+    mediaInfo.platform || (isYouTube ? "YouTube" : "Direct video");
 
   async function handleDownload() {
     if (isDownloading) return;
@@ -140,7 +142,7 @@ export default function MediaResultCard({ mediaInfo }) {
         response,
         isYouTube,
         quality,
-        downloadType
+        downloadType,
       );
       const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -173,10 +175,21 @@ export default function MediaResultCard({ mediaInfo }) {
   }
 
   return (
-    <section className="mt-6 w-full min-w-0 overflow-hidden rounded-3xl border border-white/10 bg-white text-slate-900 shadow-2xl shadow-black/25">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-4 sm:px-6">
+    <section className="relative mt-8 w-full min-w-0 overflow-hidden rounded-[28px] border border-white/10 bg-gradient-to-b from-slate-900/90 to-slate-950/95 text-slate-100 shadow-2xl shadow-black/40 ring-1 ring-inset ring-white/5 backdrop-blur-xl">
+      {/* Ambient glow */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-rose-500/20 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-32 -left-24 h-64 w-64 rounded-full bg-indigo-500/10 blur-3xl"
+      />
+
+      {/* Header */}
+      <header className="relative flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-8">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-rose-500 to-rose-700 text-white shadow-lg shadow-rose-900/40">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -194,35 +207,56 @@ export default function MediaResultCard({ mediaInfo }) {
           </div>
 
           <div className="min-w-0">
-            <h2 className="font-bold">Your video</h2>
-            <p className="text-xs text-slate-500">Preview and download</p>
+            <h2 className="truncate text-[15px] font-semibold tracking-tight text-white">
+              {isImage ? "Your image" : "Your video"}
+            </h2>
+            <p className="text-xs text-slate-400">Preview and download</p>
           </div>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        <span
+          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+            isDownloading
+              ? "border-amber-400/20 bg-amber-400/10 text-amber-300"
+              : "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+          }`}
+        >
+          <span className="relative flex h-2 w-2">
+            <span
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 ${
+                isDownloading ? "bg-amber-400" : "bg-emerald-400"
+              }`}
+            />
+            <span
+              className={`relative inline-flex h-2 w-2 rounded-full ${
+                isDownloading ? "bg-amber-400" : "bg-emerald-400"
+              }`}
+            />
+          </span>
           {isDownloading ? "Downloading" : "Ready"}
         </span>
-      </div>
+      </header>
 
-      <div className="grid min-w-0 gap-5 p-4 sm:p-6 md:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] md:gap-6">
+      {/* Body */}
+      <div className="relative grid min-w-0 gap-6 p-5 sm:p-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:gap-10">
+        {/* Preview column */}
         <div className="min-w-0">
-          <div className="overflow-hidden rounded-2xl bg-slate-100">
+          <div className="group relative overflow-hidden rounded-2xl bg-slate-800 ring-1 ring-white/10">
             {mediaInfo.thumbnail ? (
               <img
                 src={mediaInfo.thumbnail}
                 alt={`${title} thumbnail`}
-                className="aspect-video w-full object-cover"
+                className="aspect-video w-full object-cover transition duration-500 group-hover:scale-[1.03]"
                 loading="lazy"
               />
             ) : (
-              <div className="flex aspect-video items-center justify-center">
+              <div className="flex aspect-video items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="1.5"
-                  className="h-12 w-12 text-slate-300"
+                  strokeWidth="1.4"
+                  className="h-14 w-14 text-slate-600"
                   aria-hidden="true"
                 >
                   <rect x="3" y="5" width="18" height="14" rx="3" />
@@ -230,64 +264,117 @@ export default function MediaResultCard({ mediaInfo }) {
                 </svg>
               </div>
             )}
+
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent"
+            />
+
+            <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-slate-950/60 px-3 py-1 text-[11px] font-semibold tracking-wide text-white backdrop-blur-md">
+              {platformLabel}
+            </span>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-              {mediaInfo.platform || (isYouTube ? "YouTube" : "Direct video")}
-            </span>
-            <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
-              Metadata retrieved
-            </span>
-          </div>
-
-          <h3 className="mt-3 break-words text-base font-bold leading-snug sm:text-lg">
+          <h3 className="mt-5 break-words text-lg font-semibold leading-snug tracking-tight text-white sm:text-xl">
             {title}
           </h3>
 
           {mediaInfo.channelTitle && (
-            <p className="mt-1 break-words text-sm text-slate-500">
+            <p className="mt-1.5 break-words text-sm text-slate-400">
               {mediaInfo.channelTitle}
             </p>
           )}
+
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-medium text-slate-300">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              className="h-3.5 w-3.5 text-emerald-400"
+              aria-hidden="true"
+            >
+              <path
+                d="m5 12 5 5L20 7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Metadata retrieved
+          </div>
         </div>
 
+        {/* Settings column */}
         <div className="flex min-w-0 flex-col">
           <div>
-            <label
-              htmlFor="snapload-quality"
-              className="text-sm font-bold text-slate-800"
+            <p
+              id="snapload-quality-label"
+              className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400"
             >
               Download settings
-            </label>
+            </p>
 
             {isYouTube ? (
               <>
-                <select
-                  id="snapload-quality"
-                  value={quality}
-                  onChange={(event) => setQuality(event.target.value)}
-                  disabled={isDownloading}
-                  className="mt-3 w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium outline-none transition focus:border-rose-500 focus:ring-4 focus:ring-rose-100 disabled:opacity-60"
+                <div
+                  role="radiogroup"
+                  aria-labelledby="snapload-quality-label"
+                  className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3"
                 >
-                  {QUALITY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} — {option.description}
-                    </option>
-                  ))}
-                </select>
+                  {QUALITY_OPTIONS.map((option) => {
+                    const active = quality === option.value;
+                    const isBest = option.value === "best";
 
-                <p className="mt-2 text-xs leading-5 text-slate-500">
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        disabled={isDownloading}
+                        onClick={() => setQuality(option.value)}
+                        className={`rounded-xl border px-3 py-2.5 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400/60 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          isBest ? "col-span-2 sm:col-span-3" : ""
+                        } ${
+                          active
+                            ? "border-rose-400/60 bg-rose-500/15 shadow-[0_0_0_1px_rgba(244,63,94,0.25)]"
+                            : "border-white/10 bg-white/[0.03] hover:border-white/25 hover:bg-white/[0.07]"
+                        }`}
+                      >
+                        <span
+                          className={`block text-sm font-semibold ${
+                            active ? "text-white" : "text-slate-200"
+                          }`}
+                        >
+                          {option.label}
+                        </span>
+                        <span
+                          className={`block text-[11px] ${
+                            active ? "text-rose-200" : "text-slate-500"
+                          }`}
+                        >
+                          {option.description}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-slate-500">
                   Actual quality depends on the formats available for this
                   video.
                 </p>
               </>
             ) : (
-              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-sm font-semibold text-slate-700">
-                  {isImage ? "Image file" : isSocial ? "Available media file" : "Original media file"}
+              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <p className="text-sm font-semibold text-slate-100">
+                  {isImage
+                    ? "Image file"
+                    : isSocial
+                      ? "Available media file"
+                      : "Original media file"}
                 </p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
+                <p className="mt-1.5 text-xs leading-5 text-slate-400">
                   {isSocial
                     ? "The platform route retrieves supported public media. Availability may vary."
                     : "The source file is downloaded without quality conversion."}
@@ -296,13 +383,17 @@ export default function MediaResultCard({ mediaInfo }) {
             )}
           </div>
 
-          <div className="mt-auto pt-5">
+          <div className="mt-auto pt-6">
             <button
               type="button"
               onClick={handleDownload}
               disabled={isDownloading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-600/20 transition hover:bg-rose-700 focus:outline-none focus:ring-4 focus:ring-rose-200 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
+              className="group relative flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 px-5 py-4 text-sm font-semibold text-white shadow-lg shadow-rose-900/40 transition hover:from-rose-400 hover:to-rose-600 focus:outline-none focus-visible:ring-4 focus-visible:ring-rose-400/30 active:scale-[0.99] disabled:cursor-wait disabled:opacity-70"
             >
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full"
+              />
               {isDownloading ? (
                 <>
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
@@ -331,39 +422,42 @@ export default function MediaResultCard({ mediaInfo }) {
               )}
             </button>
 
-            <p className="mt-3 text-center text-[11px] leading-5 text-slate-400">
+            <p className="mt-3 text-center text-[11px] leading-5 text-slate-500">
               Use only media you own or have permission to download.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="px-4 pb-4 sm:px-6 sm:pb-6">
-        <DownloadLoader
-          isDownloading={isDownloading}
-          progress={progress}
-          downloadedBytes={downloadedBytes}
-          totalBytes={totalBytes}
-        />
+      {/* Status area */}
+      {(isDownloading || message || error) && (
+        <div className="relative border-t border-white/10 px-5 py-5 sm:px-8">
+          <DownloadLoader
+            isDownloading={isDownloading}
+            progress={progress}
+            downloadedBytes={downloadedBytes}
+            totalBytes={totalBytes}
+          />
 
-        {message && (
-          <p
-            role="status"
-            className="mt-4 break-words rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm leading-6 text-emerald-800"
-          >
-            {message}
-          </p>
-        )}
+          {message && (
+            <p
+              role="status"
+              className="mt-4 break-words rounded-xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm leading-6 text-emerald-200"
+            >
+              {message}
+            </p>
+          )}
 
-        {error && (
-          <p
-            role="alert"
-            className="mt-4 whitespace-pre-wrap break-words rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700"
-          >
-            {error}
-          </p>
-        )}
-      </div>
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 whitespace-pre-wrap break-words rounded-xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm leading-6 text-rose-200"
+            >
+              {error}
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }
