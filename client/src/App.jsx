@@ -175,7 +175,6 @@ export default function App() {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-[#070914] text-white selection:bg-rose-500/30 motion-reduce:[&_*]:!animate-none motion-reduce:[&_*]:!transition-none">
       <PageLoader />
-
       <CustomCursor />
 
       <a
@@ -186,51 +185,48 @@ export default function App() {
       </a>
 
       <BackgroundEffects />
-
       <Header />
 
       <main id="home" className="relative z-10">
         {/* Hero and primary downloader */}
-        <section className="relative px-4 pb-16 pt-14 sm:px-6 sm:pb-20 sm:pt-20 lg:pt-24">
+        <section className="relative px-4 pb-10 pt-10 sm:px-6 sm:pb-12 sm:pt-14 lg:pt-16">
           <div className="pointer-events-none absolute left-1/2 top-10 -z-10 h-72 w-[min(90vw,760px)] -translate-x-1/2 rounded-full bg-rose-600/10 blur-[100px]" />
 
           <div className="mx-auto max-w-4xl text-center">
-            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 shadow-lg shadow-black/10">
+            <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-300 shadow-lg shadow-black/10">
               <span className="h-2 w-2 rounded-full bg-emerald-400" />
               One workspace. Three platforms.
             </div>
 
-            <h1 className="mx-auto mt-7 max-w-4xl text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+            <h1 className="mx-auto mt-5 max-w-4xl text-3xl font-black leading-tight tracking-tight sm:text-4xl md:text-5xl lg:text-6xl">
               Your links.
-              <span className="mt-2 block bg-gradient-to-r from-rose-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
+              <span className="mt-1 block bg-gradient-to-r from-rose-400 via-orange-300 to-amber-200 bg-clip-text text-transparent">
                 One simple workflow.
               </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-slate-400">
               Paste a supported link, preview available media, and download it
               with a simple workflow.
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-slate-400">
-              <span className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs text-slate-400">
+              <span>
+                <span className="mr-1 text-emerald-400">✓</span>
                 Simple workflow
               </span>
-
-              <span className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
+              <span>
+                <span className="mr-1 text-emerald-400">✓</span>
                 Mobile-friendly
               </span>
-
-              <span className="flex items-center gap-2">
-                <span className="text-emerald-400">✓</span>
+              <span>
+                <span className="mr-1 text-emerald-400">✓</span>
                 Supported public media
               </span>
             </div>
           </div>
 
-          <div className="mx-auto mt-10 w-full max-w-3xl sm:mt-12">
+          <div className="mx-auto mt-7 w-full max-w-3xl sm:mt-8">
             <DownloaderPanel
               platform={platform}
               onPlatformSelect={selectPlatform}
@@ -252,56 +248,50 @@ export default function App() {
               />
             )}
 
-            <p className="mx-auto mt-4 max-w-xl text-center text-xs leading-5 text-slate-500">
+            <p className="mx-auto mt-3 max-w-xl text-center text-xs leading-5 text-slate-500">
               Only download content you own or have permission to save.
               Availability depends on the platform.
             </p>
           </div>
         </section>
 
-        {/* Separate Instagram and Pinterest downloaders */}
+        {/* Compact Instagram and Pinterest downloaders */}
         <section
           id="social-downloaders"
-          className="relative scroll-mt-24 px-4 py-16 sm:px-6 sm:py-20"
+          className="relative scroll-mt-24 px-4 py-8 sm:px-6 sm:py-10"
         >
-          <div className="pointer-events-none absolute left-1/2 top-1/3 -z-10 h-80 w-[min(90vw,900px)] -translate-x-1/2 rounded-full bg-fuchsia-600/[0.07] blur-[110px]" />
+          <div className="pointer-events-none absolute left-1/2 top-1/3 -z-10 h-64 w-[min(90vw,800px)] -translate-x-1/2 rounded-full bg-fuchsia-600/[0.07] blur-[100px]" />
 
-          <div className="mx-auto mb-10 max-w-3xl text-center sm:mb-14">
-            <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-rose-300">
+          <div className="mx-auto mb-5 max-w-3xl text-center sm:mb-6">
+            <span className="inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-300">
               Social media tools
             </span>
 
-            <h2 className="mt-5 text-3xl font-black tracking-tight sm:text-4xl md:text-5xl">
+            <h2 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
               Your favorite content.
-              <span className="mt-2 block bg-gradient-to-r from-fuchsia-400 via-rose-300 to-orange-200 bg-clip-text text-transparent">
+              <span className="mt-1 block bg-gradient-to-r from-fuchsia-400 via-rose-300 to-orange-200 bg-clip-text text-transparent">
                 One place to save it.
               </span>
             </h2>
 
-            <p className="mx-auto mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
-              Use the dedicated tools below to check supported Instagram posts,
-              Reels, and Pinterest Pins.
+            <p className="mx-auto mt-3 max-w-xl text-xs leading-5 text-slate-400 sm:text-sm">
+              Check supported Instagram posts, Reels, and Pinterest Pins.
             </p>
           </div>
 
-          <div className="mx-auto grid max-w-6xl grid-cols-1 items-start gap-6 lg:grid-cols-2 lg:gap-8">
+          <div className="mx-auto grid w-full max-w-3xl grid-cols-1 items-start gap-3 md:grid-cols-2">
             <SocialDownloader platform="instagram" />
-
             <SocialDownloader platform="pinterest" />
           </div>
 
-          <p className="mx-auto mt-7 max-w-2xl text-center text-xs leading-6 text-slate-500">
-            Private posts, login-restricted content, and unsupported media
-            formats may not be available. Download only media you have
-            permission to save.
+          <p className="mx-auto mt-3 max-w-2xl text-center text-[10px] leading-4 text-slate-500">
+            Private posts, login-restricted content, and unsupported formats may
+            not be available. Download only media you have permission to save.
           </p>
         </section>
 
-        {/* Existing sections */}
         <HowItWorks />
-
         <Features />
-
         <FAQ openFaq={openFaq} onToggle={setOpenFaq} />
       </main>
 

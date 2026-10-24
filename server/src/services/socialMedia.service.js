@@ -5,44 +5,52 @@ import os from "node:os";
 import path from "node:path";
 
 const execFileAsync = promisify(execFile);
-const WINDOWS = process.platform === "win32";
-const MAX_BYTES = 100 * 1024 * 1024;
 
 const ALLOWED_HOSTS = {
   instagram: ["instagram.com", "www.instagram.com"],
   pinterest: ["pinterest.com", "www.pinterest.com", "pin.it"],
 };
 
-const IMAGE_HOSTS = ["i.pinimg.com"];
+const MAX_IMAGE_SIZE = 25 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+const WINDOWS = process.platform === "win32";
+
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 function validateUrl(rawUrl, platform) {
   if (typeof rawUrl !== "string" || !rawUrl.trim()) {
     throw new Error("A media URL is required.");
   }
 
-  let parsed;
+  let url;
+
   try {
-    parsed = new URL(rawUrl.trim());
+    url = new URL(rawUrl.trim());
   } catch {
     throw new Error("Enter a valid URL.");
   }
 
   if (
-    parsed.protocol !== "https:" ||
-    !ALLOWED_HOSTS[platform]?.includes(parsed.hostname.toLowerCase()) ||
-    parsed.username ||
-    parsed.password
+    !ALLOWED_HOSTS[platform] ||
+    url.protocol !== "https:" ||
+    !ALLOWED_HOSTS[platform].includes(url.hostname.toLowerCase())
   ) {
     throw new Error(`Enter a supported public ${platform} HTTPS URL.`);
   }
 
-  parsed.hash = "";
-  return parsed.toString();
+  if (url.username || url.password) {
+    throw new Error("URLs containing credentials are not supported.");
+  }
+
+  url.hash = "";
+  return url.toString();
 }
 
 async function runYtDlp(args, timeout = 90000) {
   const customExecutable = process.env.YTDLP_BIN;
   const executable = customExecutable || (WINDOWS ? "py" : "yt-dlp");
+
   const finalArgs =
     !customExecutable && WINDOWS ? ["-m", "yt_dlp", ...args] : args;
 
@@ -53,12 +61,13 @@ async function runYtDlp(args, timeout = 90000) {
       windowsHide: true,
       env: process.env,
     });
+
     return stdout;
   } catch (error) {
     if (error.code === "ENOENT") {
       throw new Error(
         WINDOWS && !customExecutable
-          ? 'Python or yt-dlp was not found. Run "py -m yt_dlp --version".'
+          ? 'Python or yt-dlp was not found. Check with "py -m yt_dlp --version".'
           : "yt-dlp was not found. Install it or configure YTDLP_BIN.",
       );
     }
@@ -68,181 +77,212 @@ async function runYtDlp(args, timeout = 90000) {
     }
 
     const details = error.stderr?.trim();
+
     throw new Error(
       details
-        ? `yt-dlp failed: ${details.slice(-1200)}`
+        ? `yt-dlp failed: ${details.slice(-1000)}`
         : error.message || "The media operation failed.",
     );
   }
 }
 
-// Follow only HTTPS redirects to known Pinterest hosts.
-async function fetchPinterestPage(rawUrl) {
-  let currentUrl = validateUrl(rawUrl, "pinterest");
-
-  for (let i = 0; i < 6; i++) {
-    const parsed = new URL(currentUrl);
-
-    if (
-      parsed.protocol !== "https:" ||
-      !ALLOWED_HOSTS.pinterest.includes(parsed.hostname.toLowerCase())
-    ) {
-      throw new Error("Pinterest redirected to an unsupported host.");
-    }
-
-    const response = await fetch(currentUrl, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(20000),
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml",
-      },
-    });
-
-    if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get("location");
-      if (!location) throw new Error("Pinterest returned an invalid redirect.");
-      currentUrl = new URL(location, currentUrl).toString();
-      continue;
-    }
-
-    if (!response.ok) {
-      throw new Error(`Pinterest page request failed (${response.status}).`);
-    }
-
-    const type = response.headers.get("content-type") || "";
-    if (!type.includes("text/html")) {
-      throw new Error("Pinterest did not return a readable page.");
-    }
-
-    const html = await response.text();
-    return { html, url: currentUrl };
-  }
-
-  throw new Error("Too many redirects while opening the Pinterest pin.");
-}
-
-function decodeHtml(value) {
+function decodeHtml(value = "") {
   return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, "&#62;");
 }
 
-function getMeta(html, key) {
-  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function getMetaContent(html, key) {
+  const tags = html.match(/<meta\b[^>]*>/gi) || [];
 
-  const patterns = [
-    new RegExp(
-      `<meta\\b[^>]*\\bproperty=["']${escaped}["'][^>]*\\bcontent=["']([^"']+)["'][^>]*>`,
-      "i",
-    ),
-    new RegExp(
-      `<meta\\b[^>]*\\bcontent=["']([^"']+)["'][^>]*\\bproperty=["']${escaped}["'][^>]*>`,
-      "i",
-    ),
-    new RegExp(
-      `<meta\\b[^>]*\\bname=["']${escaped}["'][^>]*\\bcontent=["']([^"']+)["'][^>]*>`,
-      "i",
-    ),
-  ];
+  for (const tag of tags) {
+    const attrs = {};
 
-  for (const pattern of patterns) {
-    const match = html.match(pattern);
-    if (match) return decodeHtml(match[1]);
+    for (const match of tag.matchAll(
+      /([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/g,
+    )) {
+      attrs[match[1].toLowerCase()] = match[2] ?? match[3] ?? match[4] ?? "";
+    }
+
+    const property = (
+      attrs.property ||
+      attrs.name ||
+      attrs.itemprop ||
+      ""
+    ).toLowerCase();
+
+    if (property === key.toLowerCase() && attrs.content) {
+      return decodeHtml(attrs.content.trim());
+    }
   }
 
   return null;
 }
 
-function validateImageUrl(rawUrl) {
-  let parsed;
+function isAllowedImageHost(hostname, platform) {
+  const host = hostname.toLowerCase();
 
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error("Pinterest did not provide a valid image URL.");
+  if (platform === "instagram") {
+    return host === "cdninstagram.com" || host.endsWith(".cdninstagram.com");
   }
 
-  if (
-    parsed.protocol !== "https:" ||
-    !IMAGE_HOSTS.includes(parsed.hostname.toLowerCase())
-  ) {
-    throw new Error("Pinterest did not provide a supported image URL.");
+  if (platform === "pinterest") {
+    return host === "pinimg.com" || host.endsWith(".pinimg.com");
   }
 
-  return parsed.toString();
+  return false;
 }
 
-async function getPinterestImageInfo(rawUrl) {
-  const { html, url } = await fetchPinterestPage(rawUrl);
+async function getPageImage(rawUrl, platform) {
+  const url = validateUrl(rawUrl, platform);
 
-  const thumbnail = getMeta(html, "og:image") || getMeta(html, "twitter:image");
+  let response;
 
-  if (!thumbnail) {
+  try {
+    response = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(15000),
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+        Referer: `https://www.${platform}.com/`,
+      },
+    });
+  } catch {
     throw new Error(
-      "Pinterest exposed no video formats or usable image URL for this pin.",
+      `Could not connect to ${platform}. Please try again later.`,
     );
   }
 
-  return {
-    success: true,
-    platform: "pinterest",
-    title:
-      getMeta(html, "og:title") ||
-      getMeta(html, "twitter:title") ||
-      "Pinterest media",
-    thumbnail: validateImageUrl(thumbnail),
-    duration: null,
-    mediaType: "image",
-    webpageUrl: url,
-    downloadType: "image",
-  };
-}
-
-async function downloadPinterestImage(rawUrl, res) {
-  const info = await getPinterestImageInfo(rawUrl);
-  const imageUrl = validateImageUrl(info.thumbnail);
-
-  const response = await fetch(imageUrl, {
-    redirect: "error",
-    signal: AbortSignal.timeout(30000),
-    headers: { "User-Agent": "Mozilla/5.0" },
-  });
-
   if (!response.ok) {
-    throw new Error("Unable to retrieve the Pinterest image.");
+    throw new Error(
+      `Could not read the ${platform} page (HTTP ${response.status}).`,
+    );
+  }
+
+  const finalUrl = new URL(response.url);
+
+  if (
+    finalUrl.protocol !== "https:" ||
+    !ALLOWED_HOSTS[platform].includes(finalUrl.hostname.toLowerCase())
+  ) {
+    throw new Error("The page redirected to an unsupported domain.");
   }
 
   const contentType = response.headers.get("content-type") || "";
-  if (!contentType.startsWith("image/")) {
-    throw new Error("Pinterest did not return an image file.");
+
+  if (!contentType.toLowerCase().includes("text/html")) {
+    throw new Error("The page did not return HTML.");
   }
 
-  const declaredLength = Number(response.headers.get("content-length") || 0);
-  if (declaredLength > MAX_BYTES) {
-    throw new Error("The image exceeds the 100 MB download limit.");
-  }
+  const html = await response.text();
 
-  if (!response.body) {
-    throw new Error("Pinterest returned an empty image response.");
-  }
+  // Temporary diagnostics. Remove these logs after testing.
+  console.log("\n--- SnapLoad HTML Debug ---");
+  console.log("Platform:", platform);
+  console.log("Page URL:", response.url);
+  console.log("HTTP Status:", response.status);
+  console.log("HTML Length:", html.length);
+  console.log("Has og:image:", html.toLowerCase().includes("og:image"));
+  console.log(
+    "Has twitter:image:",
+    html.toLowerCase().includes("twitter:image"),
+  );
+  console.log("Has login text:", html.toLowerCase().includes("login"));
+  console.log("Has CAPTCHA text:", html.toLowerCase().includes("captcha"));
+  console.log("--- End HTML Debug ---\n");
 
-  const chunks = [];
-  let total = 0;
+  const imageUrl =
+    getMetaContent(html, "og:image") ||
+    getMetaContent(html, "twitter:image") ||
+    getMetaContent(html, "twitter:image:src");
 
-  for await (const chunk of response.body) {
-    total += chunk.length;
-    if (total > MAX_BYTES) {
-      throw new Error("The image exceeds the 100 MB download limit.");
+  if (!imageUrl) {
+    const lowerHtml = html.toLowerCase();
+
+    if (
+      lowerHtml.includes("captcha") ||
+      lowerHtml.includes("login") ||
+      lowerHtml.includes("accounts/login")
+    ) {
+      throw new Error(
+        `${platform} returned a login or CAPTCHA page instead of the post. The image cannot be accessed through this request.`,
+      );
     }
-    chunks.push(chunk);
+
+    throw new Error(
+      `No image metadata was found. The ${platform} post may be private or unavailable.`,
+    );
   }
 
-  const extensionByType = {
+  let image;
+
+  try {
+    image = new URL(imageUrl);
+  } catch {
+    throw new Error("The page returned an invalid image URL.");
+  }
+
+  if (
+    image.protocol !== "https:" ||
+    !isAllowedImageHost(image.hostname, platform) ||
+    image.username ||
+    image.password
+  ) {
+    throw new Error("The image URL uses an unsupported host.");
+  }
+
+  return {
+    imageUrl: image.toString(),
+    webpageUrl: finalUrl.toString(),
+  };
+}
+
+async function downloadImage(imageUrl, platform, res) {
+  const image = new URL(imageUrl);
+
+  if (
+    image.protocol !== "https:" ||
+    !isAllowedImageHost(image.hostname, platform)
+  ) {
+    throw new Error("Unsupported image URL.");
+  }
+
+  const response = await fetch(image, {
+    redirect: "follow",
+    signal: AbortSignal.timeout(20000),
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "image/*",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("The image could not be downloaded.");
+  }
+
+  const finalUrl = new URL(response.url);
+
+  if (
+    finalUrl.protocol !== "https:" ||
+    !isAllowedImageHost(finalUrl.hostname, platform)
+  ) {
+    throw new Error("The image redirected to an unsupported host.");
+  }
+
+  const contentType = (response.headers.get("content-type") || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+
+  const extensions = {
     "image/jpeg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
@@ -250,40 +290,121 @@ async function downloadPinterestImage(rawUrl, res) {
     "image/avif": "avif",
   };
 
-  const extension = extensionByType[contentType.split(";")[0].toLowerCase()];
+  const extension = extensions[contentType];
+
   if (!extension) {
-    throw new Error("This Pinterest image format is not supported.");
+    throw new Error("The server did not return a supported image.");
   }
 
-  const filename = `pinterest-image.${extension}`;
+  const contentLength = Number(response.headers.get("content-length") || 0);
+
+  if (contentLength > MAX_IMAGE_SIZE) {
+    throw new Error("The image is too large (maximum 25 MB).");
+  }
+
+  if (!response.body) {
+    throw new Error("The image response was empty.");
+  }
+
+  const chunks = [];
+  let total = 0;
+
+  for await (const chunk of response.body) {
+    total += chunk.length;
+
+    if (total > MAX_IMAGE_SIZE) {
+      await response.body.cancel().catch(() => {});
+      throw new Error("The image is too large (maximum 25 MB).");
+    }
+
+    chunks.push(Buffer.from(chunk));
+  }
+
+  const buffer = Buffer.concat(chunks);
+  const filename = `${platform}-image.${extension}`;
+
   res.setHeader("Content-Type", contentType);
   res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-  res.setHeader("Content-Length", total);
-  res.end(Buffer.concat(chunks));
+  res.setHeader("Content-Length", buffer.length);
+
+  res.end(buffer);
+}
+
+async function getYtDlpInfo(url) {
+  const output = await runYtDlp(
+    [
+      "--dump-single-json",
+      "--no-warnings",
+      "--no-playlist",
+      "--skip-download",
+      "--socket-timeout",
+      "20",
+      url,
+    ],
+    90000,
+  );
+
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error("Could not read media information from this link.");
+  }
+}
+
+function getDownloadFormat(info, platform) {
+  const formats = Array.isArray(info.formats) ? info.formats : [];
+
+  if (platform === "pinterest") {
+    const videos = formats
+      .filter(
+        (format) =>
+          format.format_id &&
+          format.vcodec &&
+          format.vcodec !== "none" &&
+          format.ext === "mp4",
+      )
+      .sort(
+        (a, b) =>
+          (b.height || 0) - (a.height || 0) || (b.tbr || 0) - (a.tbr || 0),
+      );
+
+    const audios = formats
+      .filter(
+        (format) =>
+          format.format_id &&
+          format.acodec &&
+          format.acodec !== "none" &&
+          (!format.vcodec || format.vcodec === "none"),
+      )
+      .sort((a, b) => (b.abr || 0) - (a.abr || 0));
+
+    if (videos.length && audios.length) {
+      return `${videos[0].format_id}+${audios[0].format_id}`;
+    }
+
+    if (videos.length) {
+      return videos[0].format_id;
+    }
+  }
+
+  return "bestvideo*+bestaudio/best";
+}
+
+function getMediaType(info) {
+  const extension = (info.ext || "").toLowerCase();
+
+  if (["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(extension)) {
+    return "image";
+  }
+
+  return "video";
 }
 
 export async function inspectSocialMedia(rawUrl, platform) {
   const url = validateUrl(rawUrl, platform);
 
   try {
-    const output = await runYtDlp(
-      [
-        "--dump-single-json",
-        "--no-warnings",
-        "--no-playlist",
-        "--skip-download",
-        "--socket-timeout",
-        "20",
-        url,
-      ],
-      90000,
-    );
-
-    const info = JSON.parse(output);
-    const extension = (info.ext || "").toLowerCase();
-    const isImage = ["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(
-      extension,
-    );
+    const info = await getYtDlpInfo(url);
 
     return {
       success: true,
@@ -291,113 +412,102 @@ export async function inspectSocialMedia(rawUrl, platform) {
       title: info.title || "Media preview",
       thumbnail: info.thumbnail || info.thumbnails?.at(-1)?.url || null,
       duration: Number.isFinite(info.duration) ? info.duration : null,
-      mediaType: isImage ? "image" : "video",
+      mediaType: getMediaType(info),
       webpageUrl: info.webpage_url || url,
-      downloadType: isImage ? "image" : "video",
     };
-  } catch (error) {
-    if (platform === "pinterest") {
-      try {
-        return await getPinterestImageInfo(url);
-      } catch (fallbackError) {
-        throw new Error(
-          `${error.message}. Image fallback: ${fallbackError.message}`,
-        );
-      }
-    }
+  } catch (ytError) {
+    try {
+      const { imageUrl, webpageUrl } = await getPageImage(url, platform);
 
-    throw error;
+      return {
+        success: true,
+        platform,
+        title: `${platform} image`,
+        thumbnail: imageUrl,
+        duration: null,
+        mediaType: "image",
+        webpageUrl,
+      };
+    } catch (imageError) {
+      throw new Error(
+        `Could not inspect this post. ${imageError.message || ytError.message}`,
+      );
+    }
   }
 }
 
 export async function downloadSocialMedia(rawUrl, platform, res) {
   const url = validateUrl(rawUrl, platform);
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "snapload-"));
 
-  if (platform === "pinterest") {
+  try {
+    let info = null;
+
     try {
+      info = await getYtDlpInfo(url);
+    } catch {
+      // Image-only posts may not have video formats.
+    }
+
+    if (info && getMediaType(info) !== "image") {
+      const format = getDownloadFormat(info, platform);
+
       await runYtDlp(
         [
           "--no-warnings",
           "--no-playlist",
           "--restrict-filenames",
           "--max-filesize",
-          "100M",
+          String(MAX_VIDEO_SIZE),
           "-f",
-          "best",
+          format,
+          "--merge-output-format",
+          "mp4",
           "-o",
-          path.join(os.tmpdir(), "snapload-%(id)s.%(ext)s"),
+          path.join(tempDir, "%(title).80s.%(ext)s"),
           url,
         ],
         180000,
       );
-    } catch (error) {
-      const message = error.message.toLowerCase();
 
-      if (
-        message.includes("no video formats found") ||
-        message.includes("requested format is not available") ||
-        message.includes("no formats found")
-      ) {
-        return downloadPinterestImage(url, res);
+      const files = await fs.readdir(tempDir);
+
+      const mediaFiles = files.filter((name) =>
+        /\.(mp4|webm|mkv|mov|m4v|jpg|jpeg|png|webp|gif|avif)$/i.test(name),
+      );
+
+      if (!mediaFiles.length) {
+        throw new Error("No downloadable media was found.");
       }
 
-      throw error;
+      const filename = mediaFiles[0];
+
+      return res.download(
+        path.join(tempDir, filename),
+        filename,
+        async (error) => {
+          await fs
+            .rm(tempDir, { recursive: true, force: true })
+            .catch(() => {});
+
+          if (error && !res.headersSent) {
+            res.status(500).json({
+              success: false,
+              message: "The download could not be completed.",
+            });
+          }
+        },
+      );
     }
 
-    // yt-dlp video downloads are handled below in the shared flow.
-  }
+    const { imageUrl } = await getPageImage(url, platform);
 
-  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "snapload-"));
-
-
-
-try {
-  const formatSelector =
-    platform === "pinterest"
-      ? "V_HLSV3_MOBILE-1626+V_HLSV3_MOBILE-audio1-1/bestvideo+bestaudio/best"
-      : "best";
-
-  const args = [
-    "--no-warnings",
-    "--no-playlist",
-    "--restrict-filenames",
-    "--max-filesize",
-    "100M",
-    "-f",
-    formatSelector,
-    "--merge-output-format",
-    "mp4",
-    "-o",
-    path.join(tempDir, "%(title).80s.%(ext)s"),
-    url,
-  ];
-
-  await runYtDlp(args, 180000);
-
-  const files = await fs.readdir(tempDir);
-  const mediaFiles = files.filter((name) =>
-    /\.(mp4|webm|mkv|mov|jpg|jpeg|png|webp|gif|avif)$/i.test(name),
-  );
-
-  if (mediaFiles.length === 0) {
-    throw new Error("No downloadable media was found for this link.");
-  }
-
-  const filename = mediaFiles[0];
-  const filePath = path.join(tempDir, filename);
-
-  res.download(filePath, filename, async (error) => {
+    await downloadImage(imageUrl, platform, res);
+  } catch (error) {
     await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
 
-    if (error && !res.headersSent) {
-      res.status(500).json({
-        success: false,
-        message: "The download could not be completed.",
-      });
+    if (!res.headersSent) {
+      throw error;
     }
-  });
-} catch (error) {
-  await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
-  throw error;
-}
+  }
 }
